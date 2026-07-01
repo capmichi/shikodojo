@@ -1,0 +1,13 @@
+{
+  "name": "思考道場",
+  "short_name": "思考道場",
+  "description": "ビジネススキルを毎日ひとつ鍛える",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14171C",
+  "theme_color": "#14171C",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
