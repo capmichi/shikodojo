@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { callClaude, setRetryStatusHandler } from "../lib/api.js";
 import { toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
 import { pickTopic } from "../lib/pick.js";
+import { loadDraft, saveDraft, clearDraft, hasText } from "../lib/draft.js";
 import ResultPanel from "./ResultPanel.jsx";
 import Answers from "./Answers.jsx";
 
@@ -46,6 +47,11 @@ ${axesText}${prevText}
 {"scores":{${jsonKeys}},"good":"良かった点を一言","improve":"次に直す点を具体的に一言","rewrite":"${skill.rewriteInstruction}"${progressKey}}`;
 }
 
+function fmtTime(ms) {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 // 記録の「最終版」（書き直していれば redo、なければ1回目）
 function latest(rec) {
   return rec.redo && rec.redo.answers ? rec.redo : rec;
@@ -60,9 +66,16 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
   const hasCases = !!(skill.cases && skill.cases.length);
   const listOf = (m) => (m === "case" ? skill.cases : skill.pool);
   const topicsOf = (m) => listOf(m).map((x) => (m === "case" ? x.t : x));
-  const [mode, setMode] = useState(hasCases ? "case" : "self");
-  const [idx, setIdx] = useState(() => pickTopic(skill.id, topicsOf(mode), history));
-  const [vals, setVals] = useState({});
+  // 書きかけがあれば、そのお題と入力を戻す（お題がデータから消えていたら戻さない）
+  const [restored, setRestored] = useState(() => {
+    const d = loadDraft(skill.id);
+    if (!d || !hasText(d.vals) || !(d.mode === "case" ? hasCases : true)) return null;
+    const i = topicsOf(d.mode).indexOf(d.topic);
+    return i < 0 ? null : { ...d, idx: i };
+  });
+  const [mode, setMode] = useState(() => restored?.mode || (hasCases ? "case" : "self"));
+  const [idx, setIdx] = useState(() => restored ? restored.idx : pickTopic(skill.id, topicsOf(mode), history));
+  const [vals, setVals] = useState(() => restored?.vals || {});
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(null);
@@ -83,6 +96,19 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     .filter((r) => r.skillId === skill.id && r.topic === topic && r.answers && r.id !== recId)
     .at(-1);
 
+  // 採点前の入力は下書きとして残す（タブを移っても、アプリを閉じても消えない）
+  useEffect(() => {
+    if (attempt > 0) return;
+    if (hasText(vals)) saveDraft(skill.id, { mode, topic, vals });
+    else clearDraft(skill.id);
+  }, [vals, mode, topic, attempt, skill.id]);
+
+  function discardDraft() {
+    reset();
+    clearDraft(skill.id);
+    setIdx(pickTopic(skill.id, topicsOf(mode), history));
+  }
+
   function redraw() {
     reset();
     setIdx((idx + 1) % list.length);
@@ -102,6 +128,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     setAttempt(0);
     setRewriting(false);
     setShowPast(false);
+    setRestored(null);
     setErr("");
     setVals({});
   }
@@ -171,6 +198,8 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
         const id = Date.now();
         setFirst(next);
         setRecId(id);
+        setRestored(null);
+        clearDraft(skill.id);
         addRecord({
           id, date: todayStr(), skillId: skill.id, skillName: skill.name,
           score: total, max, axisScores, topic, mode, answers, feedback,
@@ -230,6 +259,13 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
           <button className="redraw" onClick={redraw}>↻ 引き直す</button>
         </div>
       </div>
+
+      {restored && !result && (
+        <div className="restored">
+          <span>書きかけを戻しました（{fmtTime(restored.at)}）</span>
+          <button onClick={discardDraft}>消して新しく</button>
+        </div>
+      )}
 
       {past && !result && (
         <div className="pastbox">
