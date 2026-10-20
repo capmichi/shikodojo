@@ -1,17 +1,9 @@
 /* 小さな共有ユーティリティ */
 
-// 日替わりローテ用のインデックス（叩き台HTMLと同じ基準日）
+// 基準日からの日数（今日のスキルの同点を日替わりでずらすのに使う）
 export function dayIndex() {
   const start = new Date(2024, 0, 1);
   return Math.floor((new Date() - start) / 86400000);
-}
-
-// 日替わりのお題index。スキルも同じ dayIndex で回るので、お題まで dayIndex の剰余にすると
-// 「今日のスキル」の日に出るお題が偏る（6スキル×10題なら5題しか出ない）。
-// 「今日のスキルとして何周目か」で進めると、全お題が順番に回る。
-export function topicIndex(len, cycle) {
-  const k = Math.floor(dayIndex() / cycle);
-  return ((k % len) + len) % len;
 }
 
 // AIが文字列でなくオブジェクト/配列で返しても読める形に整える

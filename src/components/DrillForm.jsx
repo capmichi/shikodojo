@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { callClaude, setRetryStatusHandler } from "../lib/api.js";
-import { topicIndex, toText, parseJSON } from "../lib/util.js";
+import { toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
-import { WRITE_SKILLS } from "../lib/skills.js";
+import { pickTopic } from "../lib/pick.js";
 import ResultPanel from "./ResultPanel.jsx";
 import Answers from "./Answers.jsx";
 
@@ -59,8 +59,9 @@ function latest(rec) {
 export default function DrillForm({ skill, history, addRecord, updateRecord, gotoGuide }) {
   const hasCases = !!(skill.cases && skill.cases.length);
   const listOf = (m) => (m === "case" ? skill.cases : skill.pool);
+  const topicsOf = (m) => listOf(m).map((x) => (m === "case" ? x.t : x));
   const [mode, setMode] = useState(hasCases ? "case" : "self");
-  const [idx, setIdx] = useState(() => topicIndex(listOf(mode).length, WRITE_SKILLS.length));
+  const [idx, setIdx] = useState(() => pickTopic(skill.id, topicsOf(mode), history));
   const [vals, setVals] = useState({});
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,7 +92,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     if (m === mode) return;
     reset();
     setMode(m);
-    setIdx(topicIndex(listOf(m).length, WRITE_SKILLS.length));
+    setIdx(pickTopic(skill.id, topicsOf(m), history));
   }
 
   function reset() {
