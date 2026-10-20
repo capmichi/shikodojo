@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { callClaude, setRetryStatusHandler } from "../lib/api.js";
-import { dayIndex, toText } from "../lib/util.js";
+import { topicIndex, toText } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
+import { WRITE_SKILLS } from "../lib/skills.js";
 import ResultPanel from "./ResultPanel.jsx";
 
 // 書く系：お題＋動的フィールド＋採点。プロンプト組み立ては叩き台HTMLの grade() と同一。
 export default function DrillForm({ skill, addRecord }) {
-  const initIdx = ((dayIndex() % skill.pool.length) + skill.pool.length) % skill.pool.length;
+  const initIdx = topicIndex(skill.pool.length, WRITE_SKILLS.length);
   const [idx, setIdx] = useState(initIdx);
   const [vals, setVals] = useState({});
   const [err, setErr] = useState("");

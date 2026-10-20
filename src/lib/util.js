@@ -6,6 +6,14 @@ export function dayIndex() {
   return Math.floor((new Date() - start) / 86400000);
 }
 
+// 日替わりのお題index。スキルも同じ dayIndex で回るので、お題まで dayIndex の剰余にすると
+// 「今日のスキル」の日に出るお題が偏る（6スキル×10題なら5題しか出ない）。
+// 「今日のスキルとして何周目か」で進めると、全お題が順番に回る。
+export function topicIndex(len, cycle) {
+  const k = Math.floor(dayIndex() / cycle);
+  return ((k % len) + len) % len;
+}
+
 // AIが文字列でなくオブジェクト/配列で返しても読める形に整える
 // （HTMLで修正済みの [object Object] バグ対策。必ず表示前に通す）
 export function toText(v) {
