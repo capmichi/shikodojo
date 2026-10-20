@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { QUIZ_SKILL } from "../lib/skills.js";
 import { todayStr } from "../lib/storage.js";
+import { QUIZ_CAT_GROUP } from "../lib/groups.js";
 
 function shuffle(a) {
   const arr = [...a];
@@ -22,6 +23,21 @@ function makeRounds(questions) {
   }));
 }
 
+// 分野ごとの正誤から、グループ別の正答率（0〜1）を出す
+function groupRates(results) {
+  const acc = {};
+  results.forEach(({ cat, ok }) => {
+    const g = QUIZ_CAT_GROUP[cat];
+    if (!g) return;
+    acc[g] = acc[g] || { ok: 0, n: 0 };
+    acc[g].n++;
+    if (ok) acc[g].ok++;
+  });
+  const out = {};
+  for (const g in acc) out[g] = acc[g].ok / acc[g].n;
+  return out;
+}
+
 // クイズ：タブを開くと即スタート。シャッフル出題→即時◯✕＋解説→最後にスコア。
 export default function Quiz({ addRecord, gotoGuide }) {
   const questions = QUIZ_SKILL.questions;
@@ -31,6 +47,7 @@ export default function Quiz({ addRecord, gotoGuide }) {
   const [picked, setPicked] = useState(null); // 選んだ選択肢の元index（未回答はnull）
   const [finished, setFinished] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [results, setResults] = useState([]); // [{cat, ok}]：分析の「弱点の傾向」用
 
   const round = order[qi];
   const q = questions[round.i];
@@ -38,20 +55,24 @@ export default function Quiz({ addRecord, gotoGuide }) {
 
   function restart() {
     setOrder(makeRounds(questions));
-    setQi(0); setScore(0); setPicked(null); setFinished(false); setSaved(false);
+    setQi(0); setScore(0); setPicked(null); setFinished(false); setSaved(false); setResults([]);
   }
 
   function answer(i) {
     if (picked !== null) return;
     setPicked(i);
     if (i === q.a) setScore((s) => s + 1);
+    setResults((prev) => [...prev, { cat: q.cat, ok: i === q.a }]);
   }
 
   function next() {
     if (qi + 1 >= order.length) {
       setFinished(true);
       if (!saved) {
-        addRecord({ date: todayStr(), skillId: QUIZ_SKILL.id, skillName: QUIZ_SKILL.name, score, max: order.length });
+        addRecord({
+          id: Date.now(), date: todayStr(), skillId: QUIZ_SKILL.id, skillName: QUIZ_SKILL.name,
+          score, max: order.length, groupRates: groupRates(results),
+        });
         setSaved(true);
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
