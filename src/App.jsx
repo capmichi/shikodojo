@@ -11,7 +11,7 @@ import Guide from "./components/Guide.jsx";
 export default function App() {
   const [tab, setTab] = useState("home");
   const [guideTarget, setGuideTarget] = useState(null); // 教本へジャンプするスキルid
-  const { history, ready, addRecord, updateRecord, clear, streak } = useHistory();
+  const { history, ready, addRecord, updateRecord, importRecords, clear, streak, persisted } = useHistory();
 
   // React マウント後にスプラッシュを消す
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function App() {
       )}
       {tab === "analysis" && <Analysis history={history} gotoGuide={gotoGuide} />}
       {tab === "hist" && (
-        <History history={history} streak={streak} clear={clear} />
+        <History history={history} streak={streak} clear={clear} importRecords={importRecords} persisted={persisted} />
       )}
       {tab === "book" && (
         <Guide target={guideTarget} />

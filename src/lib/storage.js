@@ -83,3 +83,23 @@ export function computeStreak(history) {
   }
   return streak;
 }
+
+/* ── バックアップ ── */
+
+// 書き出しファイルの1件として読めるか（日付・スキル・点数がそろっているか）
+export function isRecord(r) {
+  return !!r && typeof r === "object" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(r.date) && typeof r.skillId === "string" &&
+    Number.isFinite(r.score) && Number.isFinite(r.max) && r.max > 0;
+}
+
+// ブラウザに「この記録を勝手に消さないで」と頼む。true=保護あり / false=未許可 / null=非対応
+export async function requestPersist() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return null;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch (e) {
+    return null;
+  }
+}

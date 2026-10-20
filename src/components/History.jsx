@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { SKILLS } from "../lib/skills.js";
 import { skillAvg } from "../lib/util.js";
+import { todayStr, isRecord } from "../lib/storage.js";
 import Answers from "./Answers.jsx";
 
-// 履歴：連続日数・総回数・伸びしろ・最近15件（タップで書いた文章を読み返す）・全消去
-export default function History({ history, streak, clear }) {
+const PERSIST_TEXT = {
+  true: "有効（ブラウザが記録を勝手に消さない設定）",
+  false: "未許可（ホーム画面に追加して使うと許可されやすい）",
+  null: "このブラウザは非対応",
+};
+
+// 履歴：連続日数・総回数・伸びしろ・最近15件（タップで書いた文章を読み返す）・バックアップ・全消去
+export default function History({ history, streak, clear, importRecords, persisted }) {
   const [openId, setOpenId] = useState(null);
+  const [msg, setMsg] = useState("");
+  const fileRef = useRef(null);
 
   // 伸びしろ（平均％が最低、2回以上やったもの）
   let weak = null;
@@ -21,6 +30,39 @@ export default function History({ history, streak, clear }) {
 
   function onClear() {
     if (window.confirm("すべての記録を消します。よろしいですか?")) clear();
+  }
+
+  // 全記録をJSONファイルにして保存（機種変更・ブラウザのデータ削除への備え）
+  function onExport() {
+    const data = { app: "shikodojo", format: 1, exportedAt: new Date().toISOString(), history };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shikodojo-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMsg(`${history.length}件を書き出しました。`);
+  }
+
+  async function onImport(e) {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const arr = Array.isArray(data) ? data : data && data.app === "shikodojo" ? data.history : null;
+      if (!Array.isArray(arr)) throw new Error("思考道場の書き出しファイルではありません");
+      const valid = arr.filter(isRecord);
+      if (!valid.length) throw new Error("読み込める記録がありません");
+      if (!window.confirm(`${valid.length}件の記録を読み込みます（すでにある記録は足しません）。よろしいですか?`)) return;
+      const { added, skipped } = await importRecords(valid);
+      const notes = [skipped && `重複${skipped}件`, arr.length > valid.length && `読めない${arr.length - valid.length}件`].filter(Boolean);
+      setMsg(`${added}件を追加しました。` + (notes.length ? `（${notes.join("・")}は除外）` : ""));
+    } catch (err) {
+      setMsg("読み込めませんでした。（" + err.message + "）");
+    }
   }
 
   return (
@@ -84,6 +126,18 @@ export default function History({ history, streak, clear }) {
           })}
         </div>
       )}
+
+      <div className="gridlabel" style={{ marginTop: "24px" }}>バックアップ ／ Backup</div>
+      <div className="backup">
+        <p>記録はこの端末の中だけにあります。機種変更やブラウザのデータ削除に備えて、ときどき書き出しておくと安心です。</p>
+        <div className="bk-btns">
+          <button onClick={onExport} disabled={!history.length}>記録を書き出す</button>
+          <button onClick={() => fileRef.current.click()}>記録を読み込む</button>
+          <input type="file" accept=".json,application/json" ref={fileRef} hidden onChange={onImport} />
+        </div>
+        {msg && <div className="bk-msg">{msg}</div>}
+        <div className="bk-persist">保存の保護：{PERSIST_TEXT[persisted]}</div>
+      </div>
 
       <button className="clearbtn" onClick={onClear}>記録をすべて消す</button>
     </div>
