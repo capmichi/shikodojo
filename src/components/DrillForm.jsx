@@ -4,7 +4,7 @@ import { toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
 import { pickTopic } from "../lib/pick.js";
 import { gradePrompt, genPrompt } from "../lib/prompts.js";
-import { loadDraft, saveDraft, clearDraft, hasText } from "../lib/draft.js";
+import { loadDraft, saveDraft, clearDraft, hasText, loadPref, savePref } from "../lib/draft.js";
 import ResultPanel from "./ResultPanel.jsx";
 import Answers from "./Answers.jsx";
 
@@ -12,6 +12,12 @@ function fmtTime(ms) {
   const d = new Date(ms);
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
+
+function mmss(sec) {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+const LIMITS = [0, 180, 300]; // 制限時間の選択肢（秒）。0 はなし
 
 // 記録の「最終版」（書き直していれば redo、なければ1回目）
 function latest(rec) {
@@ -71,7 +77,21 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
   const [attempt, setAttempt] = useState(0);    // 採点した回数
   const [rewriting, setRewriting] = useState(false);
   const [showPast, setShowPast] = useState(false);
+  // 制限時間：最初の入力でスタート、時間切れで入力を止める（採点はできる）
+  const [limit, setLimit] = useState(() => loadPref("timelimit", 0));
+  const [startAt, setStartAt] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [usedSec, setUsedSec] = useState(null);   // 1回目の採点までにかかった秒
   const refBox = useRef(null);
+
+  const remain = limit && startAt ? Math.max(0, limit - Math.floor((now - startAt) / 1000)) : null;
+  const expired = remain === 0 && attempt === 0;
+
+  useEffect(() => {
+    if (!startAt || attempt > 0) return;
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [startAt, attempt]);
 
   // いまのお題と状況
   let topic, facts;
@@ -114,6 +134,8 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     setRestored(null);
     setGen(null);
     setGenErr("");
+    setStartAt(null);
+    setUsedSec(null);
     setErr("");
     setVals({});
   }
@@ -160,7 +182,18 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
   }
 
   function setField(id, v) {
+    if (expired) return;
+    if (limit && !startAt && attempt === 0) {
+      setStartAt(Date.now());
+      setNow(Date.now());
+    }
     setVals((prev) => ({ ...prev, [id]: v }));
+  }
+
+  function chooseLimit(sec) {
+    setLimit(sec);
+    savePref("timelimit", sec);
+    setStartAt(null);
   }
 
   function startRewrite() {
@@ -190,6 +223,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
         ? { answers: latest(past).answers, improve: latest(past).feedback?.improve || "" }
         : null;
     const factsFrom = mode === "real" ? "real" : "case";
+    const used = !recId && limit && startAt ? Math.min(limit, Math.floor((Date.now() - startAt) / 1000)) : null;
 
     setLoading(true);
     setRetryStatusHandler(setRetry);
@@ -231,12 +265,14 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
         setFirst(next);
         setRecId(id);
         setRestored(null);
+        setUsedSec(used);
         clearDraft(skill.id);
         addRecord({
           id, date: todayStr(), skillId: skill.id, skillName: skill.name,
           score: total, max, axisScores, topic, mode, answers, feedback,
           ...((mode === "real" || gen) && facts ? { facts } : {}),
           ...(gen ? { gen: true } : {}),
+          ...(used != null ? { timeLimit: limit, timeUsed: used } : {}),
         });
       } else {
         // 書き直しは1回目の記録に添えるだけ（分析には使わない）
@@ -358,6 +394,26 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
         </div>
       )}
 
+      {(attempt === 0 || usedSec != null) && (
+        <div className={"timer" + (expired ? " over" : startAt && attempt === 0 ? " run" : "")}>
+          <span className="tl">⏱ 制限時間</span>
+          {attempt > 0 ? (
+            <b>{mmss(usedSec)} で書いた（制限 {limit / 60}分）</b>
+          ) : startAt ? (
+            <b>{expired ? "時間切れ — ここまでで採点しよう" : `残り ${mmss(remain)}`}</b>
+          ) : (
+            <span className="topts">
+              {LIMITS.map((sec) => (
+                <button key={sec} className={limit === sec ? "on" : ""} onClick={() => chooseLimit(sec)}>
+                  {sec ? `${sec / 60}分` : "なし"}
+                </button>
+              ))}
+              {limit > 0 && <small>書き始めたらスタート</small>}
+            </span>
+          )}
+        </div>
+      )}
+
       <div>
         {skill.fields.map((f) => (
           <div className="field" key={f.id}>
@@ -366,6 +422,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
             <textarea
               placeholder={f.ph || ""}
               value={vals[f.id] || ""}
+              readOnly={expired}
               onChange={(e) => setField(f.id, e.target.value)}
             />
           </div>

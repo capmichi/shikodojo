@@ -66,7 +66,10 @@ export default function History({ history, streak, clear }) {
                     {(r.facts || r.mode === "case") && (
                       <div className="hfacts">{r.facts || skill.cases?.find((c) => c.t === r.topic)?.s}</div>
                     )}
-                    <div className="hver">1回目（{r.score}/{r.max}）</div>
+                    <div className="hver">
+                      1回目（{r.score}/{r.max}）
+                      {r.timeUsed != null && `　⏱ ${Math.floor(r.timeUsed / 60)}:${String(r.timeUsed % 60).padStart(2, "0")} ／ 制限${r.timeLimit / 60}分`}
+                    </div>
                     <Answers skill={skill} rec={r} />
                     {r.redo && r.redo.answers && (
                       <>

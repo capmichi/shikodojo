@@ -113,6 +113,20 @@ header{display:flex;align-items:flex-end;justify-content:space-between;
   letter-spacing:.14em;color:var(--mark);margin:-6px 2px 16px;}
 .yours::before,.yours::after{content:"";flex:1;height:1px;background:var(--mark);opacity:.35;}
 
+/* 制限時間 */
+.timer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--border);background:var(--panel);
+  border-radius:3px;padding:8px 12px;margin-bottom:16px;font-size:12px;}
+.timer .tl{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;color:var(--muted);}
+.timer b{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--text);}
+.timer.run{border-color:var(--gold);} .timer.run b{color:var(--gold);font-size:16px;}
+.timer.over{border-color:var(--mark);background:var(--mark-soft);} .timer.over b{color:var(--mark);}
+.timer .topts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.timer .topts button{background:none;border:1px solid var(--border-strong);color:var(--muted);font-family:"JetBrains Mono",monospace;
+  font-size:11px;padding:3px 10px;border-radius:2px;cursor:pointer;}
+.timer .topts button.on{border-color:var(--gold);color:var(--gold);}
+.timer .topts small{color:var(--muted-2);font-size:10px;}
+.field textarea[readonly]{opacity:.6;}
+
 .field{margin-bottom:14px;}
 .field .fl{font-size:13px;font-weight:700;margin-bottom:3px;}
 .field .fl b{color:var(--mark);font-family:"JetBrains Mono",monospace;margin-right:6px;font-size:12px;}

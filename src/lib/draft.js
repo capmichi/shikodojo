@@ -35,6 +35,22 @@ export function clearDraft(skillId) {
   writeAll(all);
 }
 
+// 端末ごとの小さな設定（制限時間など）。localStorage キー "shikodojo:pref:<name>"
+export function loadPref(name, fallback) {
+  try {
+    const v = localStorage.getItem("shikodojo:pref:" + name);
+    return v == null ? fallback : JSON.parse(v);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+export function savePref(name, value) {
+  try {
+    localStorage.setItem("shikodojo:pref:" + name, JSON.stringify(value));
+  } catch (e) { /* 保存できなくても動く */ }
+}
+
 // 入力が1文字でもあるか
 export function hasText(vals) {
   return Object.values(vals || {}).some((v) => (v || "").trim());
