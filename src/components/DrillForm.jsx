@@ -4,6 +4,7 @@ import { topicIndex, toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
 import { WRITE_SKILLS } from "../lib/skills.js";
 import ResultPanel from "./ResultPanel.jsx";
+import Answers from "./Answers.jsx";
 
 function fieldsText(skill, answers) {
   return skill.fields.map((f) => `${f.label}：${(answers[f.id] || "").trim() || "(未記入)"}`).join("\n");
@@ -17,7 +18,7 @@ function buildPrompt(skill, topic, answers, prev) {
     ? `
 
 【参考：前回の回答と指摘】
-この回答は、前回の指摘を受けて書き直したものです。点数は今回の回答だけを見て、前回に引きずられず採点してください。
+このお題は前にも書いています。点数は今回の回答だけを見て、前回に引きずられず採点してください。
 前回の回答：
 ${fieldsText(skill, prev.answers)}
 前回の「次に直す」：${prev.improve}`
@@ -37,10 +38,16 @@ ${axesText}${prevText}
 {"scores":{${jsonKeys}},"good":"良かった点を一言","improve":"次に直す点を具体的に一言","rewrite":"${skill.rewriteInstruction}"${progressKey}}`;
 }
 
+// 記録の「最終版」（書き直していれば redo、なければ1回目）
+function latest(rec) {
+  return rec.redo && rec.redo.answers ? rec.redo : rec;
+}
+
 // 書く系：お題＋動的フィールド＋採点。
 // 1回目の採点で履歴に保存し、書き直しての再採点は同じ記録の redo を更新する
 // （分析は1回目の点数で見るので、書き直しで平均が水増しされない）。
-export default function DrillForm({ skill, addRecord, updateRecord }) {
+// 同じお題を前にやっていれば、その回答と指摘を見せ、採点でも比べる。
+export default function DrillForm({ skill, history, addRecord, updateRecord }) {
   const initIdx = topicIndex(skill.pool.length, WRITE_SKILLS.length);
   const [idx, setIdx] = useState(initIdx);
   const [vals, setVals] = useState({});
@@ -52,7 +59,14 @@ export default function DrillForm({ skill, addRecord, updateRecord }) {
   const [recId, setRecId] = useState(null);     // 1回目で保存した記録のid
   const [attempt, setAttempt] = useState(0);    // 採点した回数
   const [rewriting, setRewriting] = useState(false);
+  const [showPast, setShowPast] = useState(false);
   const refBox = useRef(null);
+
+  const topic = skill.pool[idx];
+  // 同じスキル・同じお題の、今回より前の記録（文章を保存しているものだけ）
+  const past = history
+    .filter((r) => r.skillId === skill.id && r.topic === topic && r.answers && r.id !== recId)
+    .at(-1);
 
   function redraw() {
     setIdx((idx + 1) % skill.pool.length);
@@ -61,6 +75,7 @@ export default function DrillForm({ skill, addRecord, updateRecord }) {
     setRecId(null);
     setAttempt(0);
     setRewriting(false);
+    setShowPast(false);
     setErr("");
     setVals({});
   }
@@ -84,9 +99,13 @@ export default function DrillForm({ skill, addRecord, updateRecord }) {
         return;
       }
     }
-    const topic = skill.pool[idx];
     const answers = { ...vals };
-    const prev = result ? { answers: result.answers, improve: result.improve } : null;
+    // 比べる相手：この場の直前の採点 → なければ同じお題の前回の記録
+    const prev = result
+      ? { answers: result.answers, improve: result.improve }
+      : past
+        ? { answers: latest(past).answers, improve: latest(past).feedback?.improve || "" }
+        : null;
 
     setLoading(true);
     setRetryStatusHandler(setRetry);
@@ -118,16 +137,21 @@ export default function DrillForm({ skill, addRecord, updateRecord }) {
       setResult(next);
       setAttempt(n);
       setRewriting(false);
+      setShowPast(false);
 
+      const feedback = { good: next.good, improve: next.improve, rewrite: next.rewrite, progress: next.progress };
       if (!recId) {
-        // 履歴に保存（axisScores は分析の弱点傾向の元データ）
+        // 履歴に保存（axisScores は分析の弱点傾向の元データ。answers/feedback は読み返し・前回比較用）
         const id = Date.now();
         setFirst(next);
         setRecId(id);
-        addRecord({ id, date: todayStr(), skillId: skill.id, skillName: skill.name, score: total, max, axisScores });
+        addRecord({
+          id, date: todayStr(), skillId: skill.id, skillName: skill.name,
+          score: total, max, axisScores, topic, answers, feedback,
+        });
       } else {
         // 書き直しは1回目の記録に添えるだけ（分析には使わない）
-        updateRecord(recId, { redo: { score: total, axisScores, n } });
+        updateRecord(recId, { redo: { score: total, axisScores, n, answers, feedback } });
       }
     } catch (e) {
       setErr("採点に失敗しました。もう一度試してください。（" + e.message + "）");
@@ -137,7 +161,13 @@ export default function DrillForm({ skill, addRecord, updateRecord }) {
     }
   }
 
-  const base = first && result !== first ? { label: "1回目", ...first } : null;
+  // 差を出す基準：書き直しなら1回目、初回なら同じお題の前回
+  let base = null;
+  if (first && result !== first) base = { label: "1回目", ...first };
+  else if (result && past) {
+    const [, m, d] = past.date.split("-");
+    base = { label: `前回(${+m}月${+d}日)`, total: latest(past).score, max: past.max, axisScores: latest(past).axisScores };
+  }
 
   return (
     <div>
@@ -148,12 +178,22 @@ export default function DrillForm({ skill, addRecord, updateRecord }) {
         </div>
         <div className="tb-body">
           <div className="label">{skill.poolLabel}</div>
-          <div className="topic">{skill.pool[idx]}</div>
+          <div className="topic">{topic}</div>
         </div>
         <div className="tb-foot">
           <button className="redraw" onClick={redraw}>↻ 引き直す</button>
         </div>
       </div>
+
+      {past && !result && (
+        <div className="pastbox">
+          <div className="ph">
+            <span>このお題は {past.date} にも挑戦（{latest(past).score}/{past.max}）</span>
+            <button onClick={() => setShowPast(!showPast)}>{showPast ? "閉じる" : "前回を見る"}</button>
+          </div>
+          {showPast && <Answers skill={skill} rec={latest(past)} />}
+        </div>
+      )}
 
       {rewriting && result && (
         <div className="refbox" ref={refBox}>

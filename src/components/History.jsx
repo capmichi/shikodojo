@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { SKILLS } from "../lib/skills.js";
 import { skillAvg } from "../lib/util.js";
+import Answers from "./Answers.jsx";
 
-// 履歴：連続日数・総回数・伸びしろ・最近15件・全消去
+// 履歴：連続日数・総回数・伸びしろ・最近15件（タップで書いた文章を読み返す）・全消去
 export default function History({ history, streak, clear }) {
+  const [openId, setOpenId] = useState(null);
+
   // 伸びしろ（平均％が最低、2回以上やったもの）
   let weak = null;
   const stats = SKILLS
@@ -37,15 +41,41 @@ export default function History({ history, streak, clear }) {
         <div className="hempty">まだ記録がありません。ホームから1つやってみましょう。</div>
       ) : (
         <div>
-          {recent.map((r, i) => (
-            <div className="hrow" key={i}>
-              <span><span className="hd">{r.date}</span>　{r.skillName}</span>
-              <span className="hs">
-                {r.score}/{r.max}
-                {r.redo && <span className="hredo"> → {r.redo.score}</span>}
-              </span>
-            </div>
-          ))}
+          {recent.map((r, i) => {
+            const skill = SKILLS.find((s) => s.id === r.skillId);
+            const canOpen = !!(r.answers && skill);
+            const isOpen = canOpen && openId === r.id;
+            return (
+              <div key={r.id || i}>
+                <div
+                  className={"hrow" + (canOpen ? " canopen" : "")}
+                  onClick={canOpen ? () => setOpenId(isOpen ? null : r.id) : undefined}
+                >
+                  <span>
+                    <span className="hd">{r.date}</span>　{r.skillName}
+                    {canOpen && <span className="harrow">{isOpen ? "▾" : "▸"}</span>}
+                  </span>
+                  <span className="hs">
+                    {r.score}/{r.max}
+                    {r.redo && <span className="hredo"> → {r.redo.score}</span>}
+                  </span>
+                </div>
+                {isOpen && (
+                  <div className="hdetail">
+                    <div className="htopic">{r.topic}</div>
+                    <div className="hver">1回目（{r.score}/{r.max}）</div>
+                    <Answers skill={skill} rec={r} />
+                    {r.redo && r.redo.answers && (
+                      <>
+                        <div className="hver">書き直し {r.redo.n}回目（{r.redo.score}/{r.max}）</div>
+                        <Answers skill={skill} rec={r.redo} />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

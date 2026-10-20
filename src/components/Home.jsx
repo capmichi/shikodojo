@@ -18,7 +18,7 @@ export default function Home({ history, addRecord, updateRecord, gotoGuide }) {
             <button className="back" onClick={() => setSelected(null)}>← スキル一覧へ</button>
             <button className="guidebtn" onClick={() => gotoGuide(selected.id)}>📖 このスキルの教本</button>
           </div>
-          <DrillForm skill={selected} addRecord={addRecord} updateRecord={updateRecord} />
+          <DrillForm skill={selected} history={history} addRecord={addRecord} updateRecord={updateRecord} />
         </div>
       </div>
     );
