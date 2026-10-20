@@ -4,6 +4,16 @@ export function fieldsText(skill, answers) {
   return skill.fields.map((f) => `${f.label}：${(answers[f.id] || "").trim() || "(未記入)"}`).join("\n");
 }
 
+// 点数の目安（全スキル・全軸共通）。日やスキルが違っても同じ物差しで付けさせ、採点のブレを減らす
+const SCALE = `採点の目安（全軸共通）：
+0＝書かれていない／的外れ
+1＝形だけで中身がない
+2＝一部できているが、大事な所が抜けている
+3＝基本はできている（合格ライン）
+4＝具体的で抜けが少なく、現場で通じる
+5＝そのまま現場で使えるお手本レベル（めったに付けない）
+未記入の欄が担う軸は0〜1点にする。`;
+
 // 状況の出どころごとの見出し
 const FACTS_HEAD = {
   case: "状況（例題として与えた事実）",
@@ -41,7 +51,9 @@ ${factsText}
 ${fieldsText(skill, answers)}
 
 採点軸：
-${axesText}${prevText}
+${axesText}
+
+${SCALE}${prevText}
 
 必ず以下のJSONのみ返す（前置き・マークダウン・コードブロック禁止）：
 {"scores":{${jsonKeys}},"good":"良かった点を一言","improve":"次に直す点を具体的に一言","rewrite":"${skill.rewriteInstruction}"${progressKey}}`;
