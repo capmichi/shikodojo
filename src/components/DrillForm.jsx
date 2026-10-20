@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { callClaude, setRetryStatusHandler } from "../lib/api.js";
-import { topicIndex, toText } from "../lib/util.js";
+import { topicIndex, toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
 import { WRITE_SKILLS } from "../lib/skills.js";
 import ResultPanel from "./ResultPanel.jsx";
@@ -57,9 +57,7 @@ ${axesText}
     setLoading(true);
     setRetryStatusHandler(setRetry);
     try {
-      let text = await callClaude(prompt, 1000);
-      text = text.replace(/```json|```/g, "").trim();
-      const out = JSON.parse(text);
+      const out = parseJSON(await callClaude(prompt, 1000));
 
       // スコア整形＋合計＋軸別
       const s = out.scores || {};

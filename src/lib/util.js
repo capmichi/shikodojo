@@ -24,6 +24,16 @@ export function toText(v) {
   return String(v);
 }
 
+// AIの返答からJSONオブジェクトを取り出す。「以下が採点です」等の前置きや
+// コードブロックが付いても、最初の { から最後の } までを読む。
+export function parseJSON(text) {
+  const s = String(text || "").replace(/```json|```/g, "");
+  const a = s.indexOf("{");
+  const b = s.lastIndexOf("}");
+  if (a < 0 || b <= a) throw new Error("採点結果を読み取れませんでした");
+  return JSON.parse(s.slice(a, b + 1));
+}
+
 // あるスキルの平均％（max>0 のレコードのみ）
 export function skillAvg(history, id) {
   const recs = (history || []).filter((r) => r.skillId === id && r.max > 0);
