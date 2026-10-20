@@ -4,7 +4,8 @@
    type:"write" … 入力→AI採点 ／ type:"quiz" … 一問一答
    pool  … 「自分で考える」お題（状況は自分の現場で補う）
    cases … 「例題」お題＋状況（事実・数字・登場人物は用意済み。判断と言葉だけ自分で考える）
-   ※cases 以外は叩き台HTMLの SKILLS と同一
+   real  … 「実戦」自分の現場の場面を入力（ph＝お題の入力例、factsPh＝状況の入力例。なければ状況欄なし）
+   ※cases / real 以外は叩き台HTMLの SKILLS と同一
    ═══════════════════════════════════════════════ */
 
 const F = (id, label, sub, ph, required = false) => ({ id, label, sub, ph, required });
@@ -76,6 +77,7 @@ export const SKILLS = [
       {key:"numbers",label:"具体・数字",desc:"検証できる具体例や数字が入っているか"},
     ],
     rewriteLabel:"お手本リライト", rewriteInstruction:"PREPを使ったお手本リライトを1〜2文で",
+    real:{ ph:"例：うちの班も、日報をやめて週報にすべきか", factsPh:"班の人数、今のやり方にかかる時間、困っていること、数字など" },
   },
 
   {
@@ -135,6 +137,7 @@ export const SKILLS = [
       {key:"clarity",label:"指示の具体性",desc:"誰に何をどうやってもらうかが具体的で、誤解の余地がないか"},
     ],
     rewriteLabel:"お手本の指示文", rewriteInstruction:"前後工程・完了条件まで含んだお手本の指示文を2〜3文で",
+    real:{ ph:"例：明日、後輩の◯◯さんに△△の溶接を任せる", factsPh:"相手の経験、作業の中身、この後の工程、自分の予定、材料・設備の状況など" },
   },
 
   {
@@ -197,6 +200,7 @@ export const SKILLS = [
       {key:"action",label:"次の一手・依頼",desc:"報告で終わらず、対応とお願いが明確か"},
     ],
     rewriteLabel:"お手本の報告文", rewriteInstruction:"結論ファーストで事実と対応まで含んだお手本の報告文を2〜3文で",
+    real:{ ph:"例：今日の◯◯の件を、課長に報告する", factsPh:"起きたこと（時刻・数字）、自分の見立て、報告する相手の状況など" },
   },
 
   {
@@ -255,6 +259,7 @@ export const SKILLS = [
       {key:"angle",label:"角度の広さ",desc:"コスト・現場・リスクなど複数の角度から予測できているか"},
     ],
     rewriteLabel:"他に備えるべき質問", rewriteInstruction:"他に想定すべき鋭い質問を2つ、簡潔に",
+    real:{ ph:"例：来週の会議で◯◯を提案する", factsPh:"聞き手、提案の中身、費用・効果の数字、気になっている弱点など" },
   },
 
   {
@@ -314,6 +319,7 @@ export const SKILLS = [
       {key:"alt",label:"代替案",desc:"押し返すだけでなく、歩み寄れる落としどころを出せているか"},
     ],
     rewriteLabel:"お手本の一言", rewriteInstruction:"角を立てず押し返すお手本の言い回しを2〜3文で",
+    real:{ ph:"例：客先から◯◯を求められた", factsPh:"相手の言葉、こちらの事情・数字、譲れる所と譲れない所など" },
   },
 
   {
@@ -337,6 +343,7 @@ export const SKILLS = [
       {key:"abstract",label:"抽象化",desc:"一言で言い換える形で、一段上の抽象に上げられているか"},
     ],
     rewriteLabel:"お手本の要約", rewriteInstruction:"30字前後のお手本要約を示し、続けて『一言版：〜』も同じ文字列内に含める（文字列で返すこと）",
+    real:{ ph:"要約したい文章をそのまま貼る（メール・議事録・記事など）" },
   },
 
   {

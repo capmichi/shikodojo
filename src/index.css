@@ -103,6 +103,9 @@ header{display:flex;align-items:flex-end;justify-content:space-between;
 .facts{margin-top:14px;padding-top:12px;border-top:1px dashed var(--border-strong);}
 .facts p{margin:0;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--text);}
 .selfnote{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.6;}
+.realin{font-size:15px;}
+.realin[readonly]{opacity:.75;}
+.tb-body .realfl{margin-top:12px;}
 .yours{display:flex;align-items:center;gap:10px;font-family:"JetBrains Mono",monospace;font-size:10px;
   letter-spacing:.14em;color:var(--mark);margin:-6px 2px 16px;}
 .yours::before,.yours::after{content:"";flex:1;height:1px;background:var(--mark);opacity:.35;}
