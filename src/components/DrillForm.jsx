@@ -3,7 +3,7 @@ import { callClaude, setRetryStatusHandler } from "../lib/api.js";
 import { toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
 import { pickTopic } from "../lib/pick.js";
-import { gradePrompt } from "../lib/prompts.js";
+import { gradePrompt, genPrompt } from "../lib/prompts.js";
 import { loadDraft, saveDraft, clearDraft, hasText } from "../lib/draft.js";
 import ResultPanel from "./ResultPanel.jsx";
 import Answers from "./Answers.jsx";
@@ -34,6 +34,7 @@ const EMPTY_CUSTOM = { topic: "", facts: "" };
 
 // 書く系：お題＋動的フィールド＋採点。
 // モード：例題（cases：状況つき）／自分で考える（pool：お題だけ）／実戦（real：自分の現場の場面を入力）
+// 例題・お題は「AIで新しく作る」でデータに無い1題を足せる（gen）。
 // 1回目の採点で履歴に保存し、書き直しての再採点は同じ記録の redo を更新する
 // （分析は1回目の点数で見るので、書き直しで平均が水増しされない）。
 // 同じお題を前にやっていれば、その回答と指摘を見せ、採点でも比べる。
@@ -47,6 +48,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     const d = loadDraft(skill.id);
     if (!d || !modes.some((m) => m.key === d.mode)) return null;
     if (d.mode === "real") return hasText(d.vals) || hasText({ t: d.topic, f: d.facts }) ? { ...d, idx: 0 } : null;
+    if (d.gen) return d.topic ? { ...d, idx: 0 } : null;
     if (!hasText(d.vals)) return null;
     const i = topicsOf(d.mode).indexOf(d.topic);
     return i < 0 ? null : { ...d, idx: i };
@@ -56,6 +58,9 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
   const [custom, setCustom] = useState(() =>
     restored?.mode === "real" ? { topic: restored.topic || "", facts: restored.facts || "" } : EMPTY_CUSTOM
   );
+  const [gen, setGen] = useState(() => restored?.gen ? { mode: restored.mode, t: restored.topic, s: restored.facts || "" } : null);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genErr, setGenErr] = useState("");
   const [vals, setVals] = useState(() => restored?.vals || {});
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,6 +78,9 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
   if (mode === "real") {
     topic = custom.topic.trim();
     facts = custom.facts.trim();
+  } else if (gen && gen.mode === mode) {
+    topic = gen.t;
+    facts = gen.s;
   } else {
     const item = listOf(mode)[idx];
     topic = mode === "case" ? item.t : item;
@@ -88,12 +96,13 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
   useEffect(() => {
     if (attempt > 0) return;
     const real = mode === "real";
-    if (hasText(vals) || (real && hasText(custom))) {
+    if (gen) saveDraft(skill.id, { mode, topic: gen.t, facts: gen.s, gen: true, vals });   // AIで作ったお題は入力前でも残す
+    else if (hasText(vals) || (real && hasText(custom))) {
       saveDraft(skill.id, real ? { mode, topic: custom.topic, facts: custom.facts, vals } : { mode, topic, vals });
     } else {
       clearDraft(skill.id);
     }
-  }, [vals, custom, mode, topic, attempt, skill.id]);
+  }, [vals, custom, gen, mode, topic, attempt, skill.id]);
 
   function reset() {
     setResult(null);
@@ -103,6 +112,8 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     setRewriting(false);
     setShowPast(false);
     setRestored(null);
+    setGen(null);
+    setGenErr("");
     setErr("");
     setVals({});
   }
@@ -125,6 +136,27 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
     setMode(m);
     setCustom(EMPTY_CUSTOM);
     setIdx(pickTopic(skill.id, topicsOf(m), history));
+  }
+
+  // AIに新しいお題（例題なら状況つき）を1つ作ってもらう
+  async function generate() {
+    setGenErr("");
+    setGenLoading(true);
+    try {
+      const recent = history.filter((r) => r.skillId === skill.id && r.topic).slice(-10).map((r) => r.topic);
+      const out = parseJSON(await callClaude(genPrompt(skill, mode, [...topicsOf(mode), ...recent]), 800));
+      const t = toText(out.t).trim();
+      if (!t) throw new Error("お題が空でした");
+      const s = mode !== "case" ? ""
+        : Array.isArray(out.s) ? out.s.map((x) => "・" + toText(x).replace(/^・\s*/, "")).join("\n")
+        : toText(out.s);
+      reset();
+      setGen({ mode, t, s });
+    } catch (e) {
+      setGenErr("お題を作れませんでした。もう一度試してください。（" + e.message + "）");
+    } finally {
+      setGenLoading(false);
+    }
   }
 
   function setField(id, v) {
@@ -194,7 +226,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
       const feedback = { good: next.good, improve: next.improve, rewrite: next.rewrite, progress: next.progress };
       if (!recId) {
         // 履歴に保存（axisScores は分析の弱点傾向の元データ。answers/feedback は読み返し・前回比較用。
-        // 実戦の状況はデータに無いので facts も残す）
+        // 実戦・AI作成の状況はデータに無いので facts も残す）
         const id = Date.now();
         setFirst(next);
         setRecId(id);
@@ -203,7 +235,8 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
         addRecord({
           id, date: todayStr(), skillId: skill.id, skillName: skill.name,
           score: total, max, axisScores, topic, mode, answers, feedback,
-          ...(mode === "real" && facts ? { facts } : {}),
+          ...((mode === "real" || gen) && facts ? { facts } : {}),
+          ...(gen ? { gen: true } : {}),
         });
       } else {
         // 書き直しは1回目の記録に添えるだけ（分析には使わない）
@@ -241,7 +274,9 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
 
       <div className="titleblock">
         <div className="tb-head">
-          <span>{mode === "real" ? "実戦" : (mode === "case" ? "例題" : "No.") + String(idx + 1).padStart(2, "0")}</span>
+          <span>
+            {mode === "real" ? "実戦" : gen ? "AI作成" : (mode === "case" ? "例題" : "No.") + String(idx + 1).padStart(2, "0")}
+          </span>
           <span className="cat">{skill.cat}</span>
         </div>
         {mode === "real" ? (
@@ -286,8 +321,12 @@ export default function DrillForm({ skill, history, addRecord, updateRecord, got
               )}
             </div>
             <div className="tb-foot">
+              <button className="redraw" onClick={generate} disabled={genLoading}>
+                {genLoading ? <><span className="spin" />作成中…</> : "✦ AIで新しく作る"}
+              </button>
               <button className="redraw" onClick={redraw}>↻ 引き直す</button>
             </div>
+            {genErr && <div className="err generr">{genErr}</div>}
           </>
         )}
       </div>

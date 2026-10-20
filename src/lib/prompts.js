@@ -46,3 +46,37 @@ ${axesText}${prevText}
 必ず以下のJSONのみ返す（前置き・マークダウン・コードブロック禁止）：
 {"scores":{${jsonKeys}},"good":"良かった点を一言","improve":"次に直す点を具体的に一言","rewrite":"${skill.rewriteInstruction}"${progressKey}}`;
 }
+
+// 新しいお題の生成。mode:"case" は状況つき例題、"self" は既存のお題と同じ形式の1題。
+// avoid は重ならせたくない既存のお題（データ＋最近やったもの）。
+export function genPrompt(skill, mode, avoid) {
+  const avoidText = avoid.map((t) => `- ${t}`).join("\n");
+  if (mode === "case") {
+    const ex = skill.cases[0];
+    return `${skill.role}
+「${skill.name}」（${skill.tagline}）の練習用に、新しい例題を1つ作ってください。
+製造業の現場（溶接・組立・検査など）で実際にありそうな場面にし、登場人物・数字・期限・この後の予定・制約を具体的に入れること。
+回答者が考えるべき「判断」や「言い方」の答えは書かず、状況の事実だけを書くこと。
+状況は4〜6行、1行60字以内。
+
+すでにある例題（これらと重ならない場面にする）：
+${avoidText}
+
+書き方の見本：
+お題：${ex.t}
+状況：
+${ex.s}
+
+必ず以下のJSONのみ返す（前置き・マークダウン・コードブロック禁止）：
+{"t":"お題（40字以内）","s":["状況1行目","状況2行目"]}`;
+  }
+  return `${skill.role}
+「${skill.name}」（${skill.tagline}）の練習用に、新しいお題を1つ作ってください（「${skill.poolLabel}」として出すもの）。
+下の既存のものと同じ形式・同じくらいの長さにし、内容は重ならないようにすること。
+
+既存：
+${avoidText}
+
+必ず以下のJSONのみ返す（前置き・マークダウン・コードブロック禁止）：
+{"t":"新しい${skill.poolLabel}"}`;
+}

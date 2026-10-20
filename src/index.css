@@ -86,10 +86,13 @@ header{display:flex;align-items:flex-end;justify-content:space-between;
 .tb-body .label{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.2em;
   color:var(--muted-2);text-transform:uppercase;margin-bottom:8px;}
 .tb-body .topic{font-size:18px;font-weight:700;line-height:1.55;}
-.tb-foot{display:flex;justify-content:flex-end;padding:8px 12px;border-top:1px solid var(--border);}
+.tb-foot{display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid var(--border);}
+.titleblock .generr{margin:0;padding:0 12px 10px;text-align:right;font-size:12px;}
 .redraw{background:none;border:1px solid var(--border-strong);color:var(--muted);
   font-family:"JetBrains Mono",monospace;font-size:11px;padding:6px 12px;cursor:pointer;border-radius:2px;transition:.15s;}
 .redraw:hover{border-color:var(--mark);color:var(--mark);}
+.redraw:disabled{cursor:default;opacity:.7;}
+.redraw .spin{width:10px;height:10px;margin-right:6px;}
 
 /* 例題 ／ 自分で考える */
 .modesw{display:flex;margin-bottom:12px;border:1px solid var(--border);border-radius:3px;overflow:hidden;}
