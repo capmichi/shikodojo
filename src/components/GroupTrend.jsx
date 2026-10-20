@@ -96,7 +96,7 @@ export default function GroupTrend({ history }) {
           tabIndex={0}
           onPointerMove={onMove}
           onPointerDown={onMove}
-          onPointerLeave={() => setHover(null)}
+          onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}  // 指で触ったときは離しても残す（外をタップで消える）
           onKeyDown={onKey}
           onBlur={() => setHover(null)}
         >

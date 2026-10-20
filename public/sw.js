@@ -1,6 +1,6 @@
 // 最小 Service Worker。APP_VERSION でキャッシュ名を切り、古いSW事故を防ぐ。
 // index.html は常にネットワーク優先（no-cache 相当）にして、古いUIを配り続けない。
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.2.0';
 const CACHE = `shikodojo-${APP_VERSION}`;
 const PRECACHE = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 

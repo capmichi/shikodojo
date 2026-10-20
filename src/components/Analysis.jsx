@@ -69,6 +69,13 @@ export default function Analysis({ history, gotoGuide }) {
   const gpct = {};
   for (const g in acc) gpct[g] = acc[g].length ? Math.round(acc[g].reduce((a, b) => a + b, 0) / acc[g].length * 100) : null;
   const valid = Object.keys(gpct).filter((g) => gpct[g] !== null);
+  if (!valid.length) {
+    return (
+      <div className="view">
+        <div className="hempty">記録が少ないと分析できません。書く系スキルやクイズを何回かやってみましょう。</div>
+      </div>
+    );
+  }
   const lowG = valid.slice().sort((a, b) => gpct[a] - gpct[b])[0];
   const weakAxes = weakAxesIn(lowG, writeRecs);
 
