@@ -8,6 +8,11 @@ export const AXIS_GROUP = {
   numbers:"concrete", done:"concrete", clarity:"concrete", fact:"concrete", prepare:"concrete", noloss:"concrete",
   prep:"delivery", coverage:"delivery", first:"delivery", action:"delivery", predict:"delivery",
   angle:"delivery", understand:"delivery", assert:"delivery", tone:"delivery", alt:"delivery", concise:"delivery",
+  // 真因を掘る・優先順位をつける・改善提案を書く・フィードバックする
+  chain:"depth", system:"depth", criteria:"depth", sequence:"depth", feasible:"depth", impact:"depth",
+  factbase:"concrete", prevent:"concrete", confirm:"concrete", baseline:"concrete", effect:"concrete",
+  observe:"concrete", nextstep:"concrete",
+  drop:"delivery", decider:"delivery", listen:"delivery",
 };
 
 // クイズの分野（questions[].cat）→ グループ。クイズの正答率も弱点の傾向に入れる
@@ -16,6 +21,7 @@ export const QUIZ_CAT_GROUP = {
   "仮説思考":"depth", "反証":"depth",
   "数字で語る":"concrete", "抽象の罠":"concrete", "報告":"concrete",
   "結論ファースト":"delivery", "PREP":"delivery", "指示":"delivery",
+  "なぜなぜ":"depth", "優先順位":"depth", "改善提案":"concrete", "フィードバック":"concrete",
 };
 
 // 1件の記録の、グループごとの値（0〜1）。書く系は軸の平均、クイズは groupRates（分野別の正答率）
