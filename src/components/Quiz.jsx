@@ -13,21 +13,31 @@ function shuffle(a) {
 
 const MARKS = ["A", "B", "C", "D"];
 
+// 出題順と、各問の選択肢の並び（元のindexの並び替え）を作る。
+// データは正解が先頭に偏っているので、選択肢も必ず混ぜる。
+function makeRounds(questions) {
+  return shuffle([...questions.keys()]).map((i) => ({
+    i,
+    opts: shuffle([...questions[i].opts.keys()]),
+  }));
+}
+
 // クイズ：タブを開くと即スタート。シャッフル出題→即時◯✕＋解説→最後にスコア。
 export default function Quiz({ addRecord, gotoGuide }) {
   const questions = QUIZ_SKILL.questions;
-  const [order, setOrder] = useState(() => shuffle([...Array(questions.length).keys()]));
+  const [order, setOrder] = useState(() => makeRounds(questions));
   const [qi, setQi] = useState(0);
   const [score, setScore] = useState(0);
-  const [picked, setPicked] = useState(null); // 選んだ選択肢index（未回答はnull）
+  const [picked, setPicked] = useState(null); // 選んだ選択肢の元index（未回答はnull）
   const [finished, setFinished] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const q = questions[order[qi]];
+  const round = order[qi];
+  const q = questions[round.i];
   const ok = picked !== null && picked === q.a;
 
   function restart() {
-    setOrder(shuffle([...Array(questions.length).keys()]));
+    setOrder(makeRounds(questions));
     setQi(0); setScore(0); setPicked(null); setFinished(false); setSaved(false);
   }
 
@@ -83,7 +93,7 @@ export default function Quiz({ addRecord, gotoGuide }) {
             <div className="qtext">{q.q}</div>
           </div>
           <div className="qopts">
-            {q.opts.map((opt, i) => {
+            {round.opts.map((i, pos) => {
               let cls = "qopt";
               if (picked !== null) {
                 if (i === q.a) cls += " correct";
@@ -91,8 +101,8 @@ export default function Quiz({ addRecord, gotoGuide }) {
               }
               return (
                 <button key={i} className={cls} disabled={picked !== null} onClick={() => answer(i)}>
-                  <span className="mk">{MARKS[i]}</span>
-                  <span>{opt}</span>
+                  <span className="mk">{MARKS[pos]}</span>
+                  <span>{q.opts[i]}</span>
                 </button>
               );
             })}
