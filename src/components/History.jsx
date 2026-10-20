@@ -63,6 +63,9 @@ export default function History({ history, streak, clear }) {
                 {isOpen && (
                   <div className="hdetail">
                     <div className="htopic">{r.topic}</div>
+                    {r.mode === "case" && (
+                      <div className="hfacts">{skill.cases?.find((c) => c.t === r.topic)?.s}</div>
+                    )}
                     <div className="hver">1回目（{r.score}/{r.max}）</div>
                     <Answers skill={skill} rec={r} />
                     {r.redo && r.redo.answers && (

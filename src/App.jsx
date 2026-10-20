@@ -59,7 +59,7 @@ export default function App() {
         <Guide target={guideTarget} />
       )}
 
-      <footer>思考道場 v1.0 ／ 製造現場 × 思考トレーニング</footer>
+      <footer>思考道場 v1.1 ／ 製造現場 × 思考トレーニング</footer>
     </div>
   );
 }
