@@ -108,12 +108,29 @@ textarea::placeholder{color:var(--muted-2);}
 .r-head b{color:var(--mark);font-size:18px;}
 .gauges{padding:14px 16px;display:flex;flex-direction:column;gap:11px;}
 .gauge{display:grid;grid-template-columns:108px 1fr 34px;align-items:center;gap:10px;}
+.gauges.cmpmode .gauge{grid-template-columns:108px 1fr 58px;}
 .gauge .gl{font-size:12px;color:var(--muted);}
 .gauge .gbar{height:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:3px;overflow:hidden;}
 .gauge .gfill{height:100%;background:var(--mark);width:0;transition:width .6s ease;}
-.gauge .gv{font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right;}
+.gauge .gv{font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right;white-space:nowrap;}
+.gauge .gv small{font-size:10px;margin-left:4px;}
+.up{color:var(--ok);} .down{color:var(--mark);}
+.cmp{padding:10px 16px;border-bottom:1px solid var(--border);font-family:"JetBrains Mono",monospace;
+  font-size:12px;color:var(--muted);}
+.cmp b{color:var(--text);}
+.cmp span{margin-left:8px;font-weight:700;}
+.r-foot{border-top:1px solid var(--border);padding:12px 16px;}
+.rewritebtn{width:100%;background:none;border:1px solid var(--gold);color:var(--gold);
+  font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.08em;padding:11px;border-radius:3px;cursor:pointer;transition:.15s;}
+.rewritebtn:hover{background:rgba(201,162,75,.08);}
+.refbox{border:1px solid var(--gold);background:rgba(201,162,75,.06);border-radius:3px;padding:13px 14px;margin-bottom:18px;scroll-margin-top:12px;}
+.refbox .rh{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.2em;color:var(--gold);margin-bottom:8px;}
+.refbox .ri+.ri{margin-top:9px;}
+.refbox .ri b{display:block;font-size:11px;color:var(--muted);font-weight:500;}
+.refbox .ri p{margin:2px 0 0;font-size:13px;line-height:1.7;white-space:pre-wrap;}
 .notes{border-top:1px solid var(--border);padding:14px 16px;display:flex;flex-direction:column;gap:13px;}
 .note .nh{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:5px;}
+.note.progress .nh{color:var(--ok);}
 .note.good .nh{color:var(--ok);} .note.improve .nh{color:var(--mark);} .note.rewrite .nh{color:var(--gold);}
 .note p{margin:0;font-size:14px;line-height:1.7;white-space:pre-wrap;}
 .note.rewrite p{background:var(--panel-2);border:1px solid var(--border);padding:10px 12px;border-radius:3px;font-size:13px;}
@@ -177,7 +194,8 @@ textarea::placeholder{color:var(--muted-2);}
 .airesult p{margin:0;font-size:14px;line-height:1.8;white-space:pre-wrap;}
 .hrow{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px;}
 .hrow .hd{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--muted-2);}
-.hrow .hs{font-family:"JetBrains Mono",monospace;color:var(--mark);font-weight:700;}
+.hrow .hs{font-family:"JetBrains Mono",monospace;color:var(--mark);font-weight:700;white-space:nowrap;}
+.hrow .hredo{color:var(--ok);}
 .hempty{color:var(--muted);font-size:13px;text-align:center;padding:30px 0;}
 .clearbtn{margin-top:18px;width:100%;background:none;border:1px solid var(--border);color:var(--muted-2);
   font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;padding:10px;border-radius:3px;cursor:pointer;}

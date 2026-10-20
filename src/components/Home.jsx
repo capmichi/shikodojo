@@ -4,7 +4,7 @@ import { dayIndex, skillAvg } from "../lib/util.js";
 import DrillForm from "./DrillForm.jsx";
 
 // ホーム：今日のスキル（書く系を日替わりローテ）＋スキル一覧（書く系のみ）＋練習
-export default function Home({ history, addRecord, gotoGuide }) {
+export default function Home({ history, addRecord, updateRecord, gotoGuide }) {
   const [selected, setSelected] = useState(null); // 選択中スキル（nullで一覧表示）
 
   const n = WRITE_SKILLS.length;
@@ -18,7 +18,7 @@ export default function Home({ history, addRecord, gotoGuide }) {
             <button className="back" onClick={() => setSelected(null)}>← スキル一覧へ</button>
             <button className="guidebtn" onClick={() => gotoGuide(selected.id)}>📖 このスキルの教本</button>
           </div>
-          <DrillForm skill={selected} addRecord={addRecord} />
+          <DrillForm skill={selected} addRecord={addRecord} updateRecord={updateRecord} />
         </div>
       </div>
     );

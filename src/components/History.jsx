@@ -40,7 +40,10 @@ export default function History({ history, streak, clear }) {
           {recent.map((r, i) => (
             <div className="hrow" key={i}>
               <span><span className="hd">{r.date}</span>　{r.skillName}</span>
-              <span className="hs">{r.score}/{r.max}</span>
+              <span className="hs">
+                {r.score}/{r.max}
+                {r.redo && <span className="hredo"> → {r.redo.score}</span>}
+              </span>
             </div>
           ))}
         </div>
