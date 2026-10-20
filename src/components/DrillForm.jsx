@@ -56,7 +56,7 @@ function latest(rec) {
 // （分析は1回目の点数で見るので、書き直しで平均が水増しされない）。
 // 同じお題を前にやっていれば、その回答と指摘を見せ、採点でも比べる。
 // cases のあるスキルは「例題（状況つき）」と「自分で考える（お題だけ）」を切り替えられる。
-export default function DrillForm({ skill, history, addRecord, updateRecord }) {
+export default function DrillForm({ skill, history, addRecord, updateRecord, gotoGuide }) {
   const hasCases = !!(skill.cases && skill.cases.length);
   const listOf = (m) => (m === "case" ? skill.cases : skill.pool);
   const [mode, setMode] = useState(hasCases ? "case" : "self");
@@ -270,7 +270,10 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
       {err && <div className="err">{err}</div>}
 
       {result && (
-        <ResultPanel key={attempt} skill={skill} result={result} base={base} onRewrite={startRewrite} />
+        <ResultPanel
+          key={attempt} skill={skill} result={result} base={base} onRewrite={startRewrite}
+          onGuide={gotoGuide ? (li) => gotoGuide(skill.id, li) : null}
+        />
       )}
     </div>
   );

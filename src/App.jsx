@@ -18,9 +18,9 @@ export default function App() {
     if (ready && window.hideSplash) window.hideSplash();
   }, [ready]);
 
-  // 練習画面などから「このスキルの教本」を開く
-  function gotoGuide(skillId) {
-    setGuideTarget({ id: skillId, at: Date.now() });
+  // 練習画面などから「このスキルの教本」を開く（lesson を渡すとそのレッスンを開く）
+  function gotoGuide(skillId, lesson) {
+    setGuideTarget({ id: skillId, lesson, at: Date.now() });
     setTab("book");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -51,7 +51,7 @@ export default function App() {
       {tab === "quiz" && (
         <Quiz addRecord={addRecord} gotoGuide={gotoGuide} />
       )}
-      {tab === "analysis" && <Analysis history={history} />}
+      {tab === "analysis" && <Analysis history={history} gotoGuide={gotoGuide} />}
       {tab === "hist" && (
         <History history={history} streak={streak} clear={clear} />
       )}

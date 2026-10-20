@@ -1,10 +1,35 @@
 import { useState, useEffect } from "react";
 import { SKILLS } from "../lib/skills.js";
 import { GROUPS, AXIS_GROUP } from "../lib/groups.js";
+import { lessonForAxis } from "../lib/guides.js";
 import { callClaude } from "../lib/api.js";
 
+// あるグループに属する軸を「スキル×軸」で平均し、低い順に（教本レッスン付き）
+function weakAxesIn(group, writeRecs) {
+  const acc = {};
+  writeRecs.forEach((r) => {
+    for (const k in r.axisScores) {
+      if (AXIS_GROUP[k] !== group) continue;
+      const id = `${r.skillId}:${k}`;
+      (acc[id] = acc[id] || []).push(r.axisScores[k] / 5);
+    }
+  });
+  return Object.entries(acc)
+    .map(([id, arr]) => {
+      const [skillId, key] = id.split(":");
+      const skill = SKILLS.find((s) => s.id === skillId);
+      const axis = skill && skill.axes.find((a) => a.key === key);
+      if (!axis) return null;
+      const pct = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 100);
+      return { skill, axis, pct, lesson: lessonForAxis(skillId, key) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 3);
+}
+
 // 分析：①弱点の傾向（3グループ平均）②推移 ③スキル別平均 ④AI総括
-export default function Analysis({ history }) {
+export default function Analysis({ history, gotoGuide }) {
   const writeRecs = history.filter((r) => r.axisScores); // 書く系のみ
   const [mounted, setMounted] = useState(false);
   const [aiOut, setAiOut] = useState(null);
@@ -35,6 +60,7 @@ export default function Analysis({ history }) {
   for (const g in acc) gpct[g] = acc[g].length ? Math.round(acc[g].reduce((a, b) => a + b, 0) / acc[g].length * 100) : null;
   const valid = Object.keys(gpct).filter((g) => gpct[g] !== null);
   const lowG = valid.slice().sort((a, b) => gpct[a] - gpct[b])[0];
+  const weakAxes = weakAxesIn(lowG, writeRecs);
 
   // ② 推移（直近12回、書く＋クイズ全部、％）
   const all = history.slice(-12);
@@ -105,6 +131,19 @@ JSON等は不要。短い日本語の文章だけで返してください。`;
       <div className="weak" style={{ marginTop: "14px" }}>
         <b>共通の伸びしろ：{GROUPS[lowG]}（{gpct[lowG]}%）</b> — どのスキルでも、この力が足を引っぱりがち。各スキルの教本で、この観点のレッスンを意識して読むと効きます。
       </div>
+      {weakAxes.length > 0 && (
+        <div className="weakaxes">
+          <div className="gh">{GROUPS[lowG]}の中で、特に低い軸</div>
+          {weakAxes.map(({ skill, axis, pct, lesson }) => (
+            <div className="wa" key={skill.id + axis.key}>
+              <div className="wl"><span>{skill.name}・{axis.label}</span><b>{pct}%</b></div>
+              {lesson && gotoGuide && (
+                <button onClick={() => gotoGuide(skill.id, lesson.idx)}>📖 {lesson.t}</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="gridlabel" style={{ marginTop: "24px" }}>点数の推移 ／ 伸びているか</div>
       <div className="trendwrap">
