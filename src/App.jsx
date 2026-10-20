@@ -11,7 +11,7 @@ import Guide from "./components/Guide.jsx";
 export default function App() {
   const [tab, setTab] = useState("home");
   const [guideTarget, setGuideTarget] = useState(null); // 教本へジャンプするスキルid
-  const { history, ready, addRecord, clear, streak } = useHistory();
+  const { history, ready, addRecord, updateRecord, clear, streak } = useHistory();
 
   // React マウント後にスプラッシュを消す
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function App() {
       <Tabs tab={tab} setTab={changeTab} />
 
       {tab === "home" && (
-        <Home history={history} addRecord={addRecord} gotoGuide={gotoGuide} />
+        <Home history={history} addRecord={addRecord} updateRecord={updateRecord} gotoGuide={gotoGuide} />
       )}
       {tab === "quiz" && (
         <Quiz addRecord={addRecord} gotoGuide={gotoGuide} />
@@ -59,7 +59,7 @@ export default function App() {
         <Guide target={guideTarget} />
       )}
 
-      <footer>思考道場 v1.0 ／ 製造現場 × 思考トレーニング</footer>
+      <footer>思考道場 v1.1 ／ 製造現場 × 思考トレーニング</footer>
     </div>
   );
 }

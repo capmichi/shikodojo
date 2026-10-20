@@ -18,6 +18,15 @@ export function useHistory() {
     });
   }, []);
 
+  // id の付いた記録に追記する（書き直しの redo など）
+  const updateRecord = useCallback(async (id, patch) => {
+    setHistory((prev) => {
+      const next = prev.map((r) => (r.id === id ? { ...r, ...patch } : r));
+      saveHistory(next);
+      return next;
+    });
+  }, []);
+
   const clear = useCallback(async () => {
     setHistory([]);
     await saveHistory([]);
@@ -25,5 +34,5 @@ export function useHistory() {
 
   const streak = useMemo(() => computeStreak(history), [history]);
 
-  return { history, ready, addRecord, clear, streak };
+  return { history, ready, addRecord, updateRecord, clear, streak };
 }
