@@ -1,67 +1,73 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { callClaude, setRetryStatusHandler } from "../lib/api.js";
-import { topicIndex, toText, parseJSON } from "../lib/util.js";
+import { toText, parseJSON } from "../lib/util.js";
 import { todayStr } from "../lib/storage.js";
-import { WRITE_SKILLS } from "../lib/skills.js";
+import { pickTopic } from "../lib/pick.js";
+import { gradePrompt, genPrompt } from "../lib/prompts.js";
+import { loadDraft, saveDraft, clearDraft, hasText, loadPref, savePref } from "../lib/draft.js";
 import ResultPanel from "./ResultPanel.jsx";
 import Answers from "./Answers.jsx";
 
-function fieldsText(skill, answers) {
-  return skill.fields.map((f) => `${f.label}：${(answers[f.id] || "").trim() || "(未記入)"}`).join("\n");
+function fmtTime(ms) {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// 採点プロンプト。facts（例題の状況）があれば前提として渡し、
-// prev（前回の回答と指摘）があれば、直せたかも一言で返させる。
-function buildPrompt(skill, topic, facts, answers, prev) {
-  const factsText = facts
-    ? `
-【状況（例題として与えた事実）】
-${facts}
-回答者はこの状況を前提に書いています。状況にある事実・数字を活かせているか、状況と食い違うことを書いていないかも見てください。
-`
-    : "";
-  const axesText = skill.axes.map((a) => `- ${a.key}: ${a.desc}`).join("\n");
-  const jsonKeys = skill.axes.map((a) => `"${a.key}":0`).join(",");
-  const prevText = prev
-    ? `
-
-【参考：前回の回答と指摘】
-このお題は前にも書いています。点数は今回の回答だけを見て、前回に引きずられず採点してください。
-前回の回答：
-${fieldsText(skill, prev.answers)}
-前回の「次に直す」：${prev.improve}`
-    : "";
-  const progressKey = prev ? `,"progress":"前回の指摘を直せたかを一言"` : "";
-  return `${skill.role}
-以下の回答を、各軸0〜5点で厳しめに採点し、短いコメントを返してください。
-
-【${skill.poolLabel}】${topic}
-${factsText}
-${fieldsText(skill, answers)}
-
-採点軸：
-${axesText}${prevText}
-
-必ず以下のJSONのみ返す（前置き・マークダウン・コードブロック禁止）：
-{"scores":{${jsonKeys}},"good":"良かった点を一言","improve":"次に直す点を具体的に一言","rewrite":"${skill.rewriteInstruction}"${progressKey}}`;
+function mmss(sec) {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
+
+const LIMITS = [0, 180, 300]; // 制限時間の選択肢（秒）。0 はなし
 
 // 記録の「最終版」（書き直していれば redo、なければ1回目）
 function latest(rec) {
   return rec.redo && rec.redo.answers ? rec.redo : rec;
 }
 
+// このスキルで使えるモードと、切替ボタンの表示
+function modesOf(skill) {
+  const hasCases = !!(skill.cases && skill.cases.length);
+  return [
+    hasCases && { key: "case", label: "例題", sub: "状況・数字つき" },
+    hasCases
+      ? { key: "self", label: "自分で考える", sub: "お題だけ" }
+      : { key: "self", label: "練習", sub: "用意された題材" },
+    skill.real && { key: "real", label: "実戦", sub: "自分の現場の話" },
+  ].filter(Boolean);
+}
+
+const EMPTY_CUSTOM = { topic: "", facts: "" };
+
 // 書く系：お題＋動的フィールド＋採点。
+// モード：例題（cases：状況つき）／自分で考える（pool：お題だけ）／実戦（real：自分の現場の場面を入力）
+// 例題・お題は「AIで新しく作る」でデータに無い1題を足せる（gen）。
 // 1回目の採点で履歴に保存し、書き直しての再採点は同じ記録の redo を更新する
 // （分析は1回目の点数で見るので、書き直しで平均が水増しされない）。
 // 同じお題を前にやっていれば、その回答と指摘を見せ、採点でも比べる。
-// cases のあるスキルは「例題（状況つき）」と「自分で考える（お題だけ）」を切り替えられる。
-export default function DrillForm({ skill, history, addRecord, updateRecord }) {
-  const hasCases = !!(skill.cases && skill.cases.length);
-  const listOf = (m) => (m === "case" ? skill.cases : skill.pool);
-  const [mode, setMode] = useState(hasCases ? "case" : "self");
-  const [idx, setIdx] = useState(() => topicIndex(listOf(mode).length, WRITE_SKILLS.length));
-  const [vals, setVals] = useState({});
+export default function DrillForm({ skill, history, addRecord, updateRecord, gotoGuide }) {
+  const modes = modesOf(skill);
+  const listOf = (m) => (m === "case" ? skill.cases : m === "self" ? skill.pool : []);
+  const topicsOf = (m) => listOf(m).map((x) => (m === "case" ? x.t : x));
+
+  // 書きかけがあれば、そのお題と入力を戻す（お題がデータから消えていたら戻さない）
+  const [restored, setRestored] = useState(() => {
+    const d = loadDraft(skill.id);
+    if (!d || !modes.some((m) => m.key === d.mode)) return null;
+    if (d.mode === "real") return hasText(d.vals) || hasText({ t: d.topic, f: d.facts }) ? { ...d, idx: 0 } : null;
+    if (d.gen) return d.topic ? { ...d, idx: 0 } : null;
+    if (!hasText(d.vals)) return null;
+    const i = topicsOf(d.mode).indexOf(d.topic);
+    return i < 0 ? null : { ...d, idx: i };
+  });
+  const [mode, setMode] = useState(() => restored?.mode || modes[0].key);
+  const [idx, setIdx] = useState(() => restored ? restored.idx : pickTopic(skill.id, topicsOf(mode), history));
+  const [custom, setCustom] = useState(() =>
+    restored?.mode === "real" ? { topic: restored.topic || "", facts: restored.facts || "" } : EMPTY_CUSTOM
+  );
+  const [gen, setGen] = useState(() => restored?.gen ? { mode: restored.mode, t: restored.topic, s: restored.facts || "" } : null);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genErr, setGenErr] = useState("");
+  const [vals, setVals] = useState(() => restored?.vals || {});
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(null);
@@ -71,28 +77,52 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
   const [attempt, setAttempt] = useState(0);    // 採点した回数
   const [rewriting, setRewriting] = useState(false);
   const [showPast, setShowPast] = useState(false);
+  // 制限時間：最初の入力でスタート、時間切れで入力を止める（採点はできる）
+  const [limit, setLimit] = useState(() => loadPref("timelimit", 0));
+  const [startAt, setStartAt] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [usedSec, setUsedSec] = useState(null);   // 1回目の採点までにかかった秒
   const refBox = useRef(null);
 
-  const list = listOf(mode);
-  const item = list[idx];
-  const topic = mode === "case" ? item.t : item;
-  const facts = mode === "case" ? item.s : "";
+  const remain = limit && startAt ? Math.max(0, limit - Math.floor((now - startAt) / 1000)) : null;
+  const expired = remain === 0 && attempt === 0;
+
+  useEffect(() => {
+    if (!startAt || attempt > 0) return;
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [startAt, attempt]);
+
+  // いまのお題と状況
+  let topic, facts;
+  if (mode === "real") {
+    topic = custom.topic.trim();
+    facts = custom.facts.trim();
+  } else if (gen && gen.mode === mode) {
+    topic = gen.t;
+    facts = gen.s;
+  } else {
+    const item = listOf(mode)[idx];
+    topic = mode === "case" ? item.t : item;
+    facts = mode === "case" ? item.s : "";
+  }
+
   // 同じスキル・同じお題の、今回より前の記録（文章を保存しているものだけ）
-  const past = history
-    .filter((r) => r.skillId === skill.id && r.topic === topic && r.answers && r.id !== recId)
-    .at(-1);
+  const past = topic
+    ? history.filter((r) => r.skillId === skill.id && r.topic === topic && r.answers && r.id !== recId).at(-1)
+    : null;
 
-  function redraw() {
-    reset();
-    setIdx((idx + 1) % list.length);
-  }
-
-  function switchMode(m) {
-    if (m === mode) return;
-    reset();
-    setMode(m);
-    setIdx(topicIndex(listOf(m).length, WRITE_SKILLS.length));
-  }
+  // 採点前の入力は下書きとして残す（タブを移っても、アプリを閉じても消えない）
+  useEffect(() => {
+    if (attempt > 0) return;
+    const real = mode === "real";
+    if (gen) saveDraft(skill.id, { mode, topic: gen.t, facts: gen.s, gen: true, vals });   // AIで作ったお題は入力前でも残す
+    else if (hasText(vals) || (real && hasText(custom))) {
+      saveDraft(skill.id, real ? { mode, topic: custom.topic, facts: custom.facts, vals } : { mode, topic, vals });
+    } else {
+      clearDraft(skill.id);
+    }
+  }, [vals, custom, gen, mode, topic, attempt, skill.id]);
 
   function reset() {
     setResult(null);
@@ -101,12 +131,69 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
     setAttempt(0);
     setRewriting(false);
     setShowPast(false);
+    setRestored(null);
+    setGen(null);
+    setGenErr("");
+    setStartAt(null);
+    setUsedSec(null);
     setErr("");
     setVals({});
   }
 
+  function discardDraft() {
+    reset();
+    clearDraft(skill.id);
+    setCustom(EMPTY_CUSTOM);
+    setIdx(pickTopic(skill.id, topicsOf(mode), history));
+  }
+
+  function redraw() {
+    reset();
+    setIdx((idx + 1) % listOf(mode).length);
+  }
+
+  function switchMode(m) {
+    if (m === mode) return;
+    reset();
+    setMode(m);
+    setCustom(EMPTY_CUSTOM);
+    setIdx(pickTopic(skill.id, topicsOf(m), history));
+  }
+
+  // AIに新しいお題（例題なら状況つき）を1つ作ってもらう
+  async function generate() {
+    setGenErr("");
+    setGenLoading(true);
+    try {
+      const recent = history.filter((r) => r.skillId === skill.id && r.topic).slice(-10).map((r) => r.topic);
+      const out = parseJSON(await callClaude(genPrompt(skill, mode, [...topicsOf(mode), ...recent]), 800));
+      const t = toText(out.t).trim();
+      if (!t) throw new Error("お題が空でした");
+      const s = mode !== "case" ? ""
+        : Array.isArray(out.s) ? out.s.map((x) => "・" + toText(x).replace(/^・\s*/, "")).join("\n")
+        : toText(out.s);
+      reset();
+      setGen({ mode, t, s });
+    } catch (e) {
+      setGenErr("お題を作れませんでした。もう一度試してください。（" + e.message + "）");
+    } finally {
+      setGenLoading(false);
+    }
+  }
+
   function setField(id, v) {
+    if (expired) return;
+    if (limit && !startAt && attempt === 0) {
+      setStartAt(Date.now());
+      setNow(Date.now());
+    }
     setVals((prev) => ({ ...prev, [id]: v }));
+  }
+
+  function chooseLimit(sec) {
+    setLimit(sec);
+    savePref("timelimit", sec);
+    setStartAt(null);
   }
 
   function startRewrite() {
@@ -116,6 +203,10 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
 
   async function grade() {
     setErr("");
+    if (!topic) {
+      setErr(`「${skill.poolLabel}」を書いてから採点してください。`);
+      return;
+    }
     // 必須チェック
     for (const f of skill.fields) {
       const v = (vals[f.id] || "").trim();
@@ -131,11 +222,13 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
       : past
         ? { answers: latest(past).answers, improve: latest(past).feedback?.improve || "" }
         : null;
+    const factsFrom = mode === "real" ? "real" : "case";
+    const used = !recId && limit && startAt ? Math.min(limit, Math.floor((Date.now() - startAt) / 1000)) : null;
 
     setLoading(true);
     setRetryStatusHandler(setRetry);
     try {
-      const out = parseJSON(await callClaude(buildPrompt(skill, topic, facts, answers, prev), 1000));
+      const out = parseJSON(await callClaude(gradePrompt(skill, { topic, facts, factsFrom }, answers, prev), 1000));
 
       // スコア整形＋合計＋軸別
       const s = out.scores || {};
@@ -166,13 +259,20 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
 
       const feedback = { good: next.good, improve: next.improve, rewrite: next.rewrite, progress: next.progress };
       if (!recId) {
-        // 履歴に保存（axisScores は分析の弱点傾向の元データ。answers/feedback は読み返し・前回比較用）
+        // 履歴に保存（axisScores は分析の弱点傾向の元データ。answers/feedback は読み返し・前回比較用。
+        // 実戦・AI作成の状況はデータに無いので facts も残す）
         const id = Date.now();
         setFirst(next);
         setRecId(id);
+        setRestored(null);
+        setUsedSec(used);
+        clearDraft(skill.id);
         addRecord({
           id, date: todayStr(), skillId: skill.id, skillName: skill.name,
           score: total, max, axisScores, topic, mode, answers, feedback,
+          ...((mode === "real" || gen) && facts ? { facts } : {}),
+          ...(gen ? { gen: true } : {}),
+          ...(used != null ? { timeLimit: limit, timeUsed: used } : {}),
         });
       } else {
         // 書き直しは1回目の記録に添えるだけ（分析には使わない）
@@ -194,41 +294,85 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
     base = { label: `前回(${+m}月${+d}日)`, total: latest(past).score, max: past.max, axisScores: latest(past).axisScores };
   }
 
+  const locked = attempt > 0; // 採点後は実戦のお題を固定（記録と食い違わないように）
+
   return (
     <div>
-      {hasCases && (
+      {modes.length > 1 && (
         <div className="modesw">
-          <button className={mode === "case" ? "on" : ""} onClick={() => switchMode("case")}>
-            例題<small>状況・数字つき</small>
-          </button>
-          <button className={mode === "self" ? "on" : ""} onClick={() => switchMode("self")}>
-            自分で考える<small>お題だけ</small>
-          </button>
+          {modes.map((m) => (
+            <button key={m.key} className={mode === m.key ? "on" : ""} onClick={() => switchMode(m.key)}>
+              {m.label}<small>{m.sub}</small>
+            </button>
+          ))}
         </div>
       )}
 
       <div className="titleblock">
         <div className="tb-head">
-          <span>{mode === "case" ? "例題" : "No."}{String(idx + 1).padStart(2, "0")}</span>
+          <span>
+            {mode === "real" ? "実戦" : gen ? "AI作成" : (mode === "case" ? "例題" : "No.") + String(idx + 1).padStart(2, "0")}
+          </span>
           <span className="cat">{skill.cat}</span>
         </div>
-        <div className="tb-body">
-          <div className="label">{skill.poolLabel}</div>
-          <div className="topic">{topic}</div>
-          {facts && (
-            <div className="facts">
-              <div className="label">状況 ／ 用意された事実</div>
-              <p>{facts}</p>
+        {mode === "real" ? (
+          <div className="tb-body">
+            <div className="label">{skill.poolLabel} ／ 自分の現場</div>
+            <textarea
+              className="realin"
+              rows={skill.real.factsPh ? 2 : 6}
+              placeholder={skill.real.ph}
+              value={custom.topic}
+              readOnly={locked}
+              onChange={(e) => setCustom({ ...custom, topic: e.target.value })}
+            />
+            {skill.real.factsPh && (
+              <>
+                <div className="label realfl">状況 ／ わかる範囲で</div>
+                <textarea
+                  className="realin"
+                  rows={3}
+                  placeholder={skill.real.factsPh}
+                  value={custom.facts}
+                  readOnly={locked}
+                  onChange={(e) => setCustom({ ...custom, facts: e.target.value })}
+                />
+              </>
+            )}
+            <div className="selfnote">実際にあった（これからある）場面ほど身につく。人の名前は伏せてOK。</div>
+          </div>
+        ) : (
+          <>
+            <div className="tb-body">
+              <div className="label">{skill.poolLabel}</div>
+              <div className="topic">{topic}</div>
+              {facts && (
+                <div className="facts">
+                  <div className="label">状況 ／ 用意された事実</div>
+                  <p>{facts}</p>
+                </div>
+              )}
+              {mode === "self" && skill.cases && (
+                <div className="selfnote">状況は自分の現場を思い浮かべて補う。誰に・いつ・数字まで決めてから書くと採点が上がる。</div>
+              )}
             </div>
-          )}
-          {hasCases && mode === "self" && (
-            <div className="selfnote">状況は自分の現場を思い浮かべて補う。誰に・いつ・数字まで決めてから書くと採点が上がる。</div>
-          )}
-        </div>
-        <div className="tb-foot">
-          <button className="redraw" onClick={redraw}>↻ 引き直す</button>
-        </div>
+            <div className="tb-foot">
+              <button className="redraw" onClick={generate} disabled={genLoading}>
+                {genLoading ? <><span className="spin" />作成中…</> : "✦ AIで新しく作る"}
+              </button>
+              <button className="redraw" onClick={redraw}>↻ 引き直す</button>
+            </div>
+            {genErr && <div className="err generr">{genErr}</div>}
+          </>
+        )}
       </div>
+
+      {restored && !result && (
+        <div className="restored">
+          <span>書きかけを戻しました（{fmtTime(restored.at)}）</span>
+          <button onClick={discardDraft}>消して新しく</button>
+        </div>
+      )}
 
       {past && !result && (
         <div className="pastbox">
@@ -240,13 +384,33 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
         </div>
       )}
 
-      {facts && <div className="yours">ここから自分で考える ／ 判断と言葉は自分で</div>}
+      {(facts || mode === "real") && <div className="yours">ここから自分で考える ／ 判断と言葉は自分で</div>}
 
       {rewriting && result && (
         <div className="refbox" ref={refBox}>
           <div className="rh">前回の指摘を見ながら書き直す</div>
           <div className="ri"><b>次に直す</b><p>{result.improve}</p></div>
           {result.rewrite && <div className="ri"><b>{skill.rewriteLabel}</b><p>{result.rewrite}</p></div>}
+        </div>
+      )}
+
+      {(attempt === 0 || usedSec != null) && (
+        <div className={"timer" + (expired ? " over" : startAt && attempt === 0 ? " run" : "")}>
+          <span className="tl">⏱ 制限時間</span>
+          {attempt > 0 ? (
+            <b>{mmss(usedSec)} で書いた（制限 {limit / 60}分）</b>
+          ) : startAt ? (
+            <b>{expired ? "時間切れ — ここまでで採点しよう" : `残り ${mmss(remain)}`}</b>
+          ) : (
+            <span className="topts">
+              {LIMITS.map((sec) => (
+                <button key={sec} className={limit === sec ? "on" : ""} onClick={() => chooseLimit(sec)}>
+                  {sec ? `${sec / 60}分` : "なし"}
+                </button>
+              ))}
+              {limit > 0 && <small>書き始めたらスタート</small>}
+            </span>
+          )}
         </div>
       )}
 
@@ -258,6 +422,7 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
             <textarea
               placeholder={f.ph || ""}
               value={vals[f.id] || ""}
+              readOnly={expired}
               onChange={(e) => setField(f.id, e.target.value)}
             />
           </div>
@@ -270,7 +435,10 @@ export default function DrillForm({ skill, history, addRecord, updateRecord }) {
       {err && <div className="err">{err}</div>}
 
       {result && (
-        <ResultPanel key={attempt} skill={skill} result={result} base={base} onRewrite={startRewrite} />
+        <ResultPanel
+          key={attempt} skill={skill} result={result} base={base} onRewrite={startRewrite}
+          onGuide={gotoGuide ? (li) => gotoGuide(skill.id, li) : null}
+        />
       )}
     </div>
   );

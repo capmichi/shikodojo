@@ -1,9 +1,25 @@
 import { useEffect, useState } from "react";
+import { lessonForAxis } from "../lib/guides.js";
 
-// 採点結果：ゲージ（軸別）＋良かった点/次に直す/お手本。
+// 低い軸（3点以下）から順に、それを鍛える教本レッスンを最大2つ
+function weakLessons(skill, axisScores) {
+  const links = [];
+  const weak = skill.axes
+    .map((a) => ({ a, val: axisScores[a.key] ?? 0 }))
+    .filter((x) => x.val <= 3)
+    .sort((x, y) => x.val - y.val);
+  for (const { a } of weak) {
+    const l = lessonForAxis(skill.id, a.key);
+    if (l && !links.some((x) => x.idx === l.idx)) links.push({ ...l, label: a.label });
+    if (links.length >= 2) break;
+  }
+  return links;
+}
+
+// 採点結果：ゲージ（軸別）＋教本リンク＋良かった点/次に直す/お手本。
 // good/improve/rewrite/progress は DrillForm 側で toText() 済み。
 // base（{label,total,max,axisScores}）があれば「1回目 → 今回」の差を出す。
-export default function ResultPanel({ skill, result, base, onRewrite }) {
+export default function ResultPanel({ skill, result, base, onRewrite, onGuide }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
@@ -17,6 +33,7 @@ export default function ResultPanel({ skill, result, base, onRewrite }) {
     ["rewrite", skill.rewriteLabel, result.rewrite],
   ];
   const diff = base ? result.total - base.total : 0;
+  const links = onGuide ? weakLessons(skill, result.axisScores) : [];
 
   return (
     <div className="result">
@@ -50,6 +67,16 @@ export default function ResultPanel({ skill, result, base, onRewrite }) {
           );
         })}
       </div>
+      {links.length > 0 && (
+        <div className="glinks">
+          <div className="gh">伸ばすなら ／ 教本</div>
+          {links.map((l) => (
+            <button key={l.idx} onClick={() => onGuide(l.idx)}>
+              📖 {l.t}<small>{l.label}</small>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="notes">
         {notes.map(([cls, head, body]) =>
           body ? (

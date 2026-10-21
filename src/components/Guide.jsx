@@ -3,16 +3,18 @@ import { SKILLS } from "../lib/skills.js";
 import { GUIDES } from "../lib/guides.js";
 
 // 教本：スキル別セクション＋アコーディオン。
-// target（{id, at}）が来たら該当スキルの最初のレッスンを開いてスクロール。
+// target（{id, lesson?, at}）が来たら該当レッスン（未指定なら最初）を開いてスクロール。
 export default function Guide({ target }) {
   const [open, setOpen] = useState({}); // key: `${skillId}:${lessonIdx}` -> bool
   const secRefs = useRef({});
+  const lessonRefs = useRef({});
 
   useEffect(() => {
     if (!target || !target.id) return;
-    const key = `${target.id}:0`;
+    const li = target.lesson || 0;
+    const key = `${target.id}:${li}`;
     setOpen((prev) => ({ ...prev, [key]: true }));
-    const el = secRefs.current[target.id];
+    const el = target.lesson != null ? lessonRefs.current[key] : secRefs.current[target.id];
     if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   }, [target]);
 
@@ -40,7 +42,7 @@ export default function Guide({ target }) {
                 const key = `${s.id}:${li}`;
                 const isOpen = !!open[key];
                 return (
-                  <div className={"lesson" + (isOpen ? " open" : "")} key={key}>
+                  <div className={"lesson" + (isOpen ? " open" : "")} key={key} ref={(el) => (lessonRefs.current[key] = el)}>
                     <div className="lesson-head" onClick={() => toggle(key)}>
                       <span className="lesson-no">▸</span>
                       <span className="lesson-ttl">{l.t}</span>

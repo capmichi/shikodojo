@@ -11,16 +11,16 @@ import Guide from "./components/Guide.jsx";
 export default function App() {
   const [tab, setTab] = useState("home");
   const [guideTarget, setGuideTarget] = useState(null); // 教本へジャンプするスキルid
-  const { history, ready, addRecord, updateRecord, clear, streak } = useHistory();
+  const { history, ready, addRecord, updateRecord, importRecords, clear, streak, persisted } = useHistory();
 
   // React マウント後にスプラッシュを消す
   useEffect(() => {
     if (ready && window.hideSplash) window.hideSplash();
   }, [ready]);
 
-  // 練習画面などから「このスキルの教本」を開く
-  function gotoGuide(skillId) {
-    setGuideTarget({ id: skillId, at: Date.now() });
+  // 練習画面などから「このスキルの教本」を開く（lesson を渡すとそのレッスンを開く）
+  function gotoGuide(skillId, lesson) {
+    setGuideTarget({ id: skillId, lesson, at: Date.now() });
     setTab("book");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -51,15 +51,15 @@ export default function App() {
       {tab === "quiz" && (
         <Quiz addRecord={addRecord} gotoGuide={gotoGuide} />
       )}
-      {tab === "analysis" && <Analysis history={history} />}
+      {tab === "analysis" && <Analysis history={history} gotoGuide={gotoGuide} />}
       {tab === "hist" && (
-        <History history={history} streak={streak} clear={clear} />
+        <History history={history} streak={streak} clear={clear} importRecords={importRecords} persisted={persisted} />
       )}
       {tab === "book" && (
         <Guide target={guideTarget} />
       )}
 
-      <footer>思考道場 v1.1 ／ 製造現場 × 思考トレーニング</footer>
+      <footer>思考道場 v1.2 ／ 製造現場 × 思考トレーニング</footer>
     </div>
   );
 }

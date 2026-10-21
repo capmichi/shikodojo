@@ -20,8 +20,8 @@ npm run dev          # UIだけ確認（採点APIは動かない）
 
 ## 構成
 - `api/claude.js` … Claude プロキシ（model 固定・Origin/レート制限・キーはサーバー側）
-- `src/lib/` … データ（skills/guides/groups）とロジック（api/storage/util）
-- `src/components/` … 画面（Tabs/Home/DrillForm/ResultPanel/Quiz/Analysis/History/Guide）
+- `src/lib/` … データ（skills/guides/groups）とロジック（api/storage/util/prompts/pick/draft）
+- `src/components/` … 画面（Tabs/Home/DrillForm/ResultPanel/Answers/Quiz/Analysis/GroupTrend/History/Guide）
 - `public/` … manifest・sw.js・アイコン
 
 詳細な設計ルールは `CLAUDE.md` を参照。
